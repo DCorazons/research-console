@@ -8,7 +8,7 @@ Repo ini terpisah dari aplikasi uji ([DCorazons/academico](https://github.com/DC
 
 | Folder | Isi | Status |
 |---|---|---|
-| `monitoring/` | InfluxDB 1.11 (metrik k6), cAdvisor 0.52 (CPU/memori kontainer), Prometheus 3.5 | ada |
+| `monitoring/` | InfluxDB 1.11 (metrik k6), cAdvisor 0.55 (CPU/memori kontainer), Prometheus 3.5 | ada |
 | `k6/` | Skrip skenario read, write, dan stress | belum |
 | `app/` | FastAPI + Chart.js: antrean run, blok, ekspor CSV | belum |
 
