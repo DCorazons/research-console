@@ -1,0 +1,11 @@
+# Data files of the experiment: tokens, dumps, raw k6 output, exports
+data/
+results/
+*.sql
+*.sql.gz
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env

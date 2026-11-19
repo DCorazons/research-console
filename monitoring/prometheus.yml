@@ -1,0 +1,19 @@
+# Prometheus keeps only the container metrics used in the thesis: CPU and memory of
+# the application stacks (research-ar, research-repo, research-qb) and, to check the
+# load generator side, of the monitoring containers themselves.
+global:
+  scrape_interval: 5s
+  scrape_timeout: 4s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["cadvisor:8080"]
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: container_(cpu_usage_seconds_total|memory_working_set_bytes|memory_usage_bytes|memory_rss|memory_cache|memory_max_usage_bytes|spec_cpu_quota|spec_memory_limit_bytes)
+        action: keep
+      - source_labels: [name]
+        regex: (research-.*)
+        action: keep
