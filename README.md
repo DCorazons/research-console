@@ -9,7 +9,7 @@ Repo ini terpisah dari aplikasi uji ([DCorazons/academico](https://github.com/DC
 | Folder | Isi | Status |
 |---|---|---|
 | `monitoring/` | InfluxDB 1.11 (metrik k6), cAdvisor 0.55 (CPU/memori kontainer), Prometheus 3.5 | ada |
-| `k6/` | Skrip skenario read, write, dan stress | belum |
+| `k6/` | `read.js` (load dan stress), `write.js` (load), `single.js` (single request), `lib/common.js` | ada |
 | `app/` | FastAPI + Chart.js: antrean run, blok, ekspor CSV | belum |
 
 ## Tata letak di VPS
@@ -37,3 +37,30 @@ docker compose -f monitoring/docker-compose.yml up -d
 - cAdvisor: `http://127.0.0.1:8080`, hanya untuk pengecekan manual.
 
 Stack monitoring dibiarkan berjalan sepanjang sesi pengujian; yang dinyalakan dan dimatikan per run hanyalah stack aplikasi.
+
+## k6
+
+k6 dijalankan dari image `grafana/k6:1.3.0` di CPU 0, dengan jaringan host agar `127.0.0.1:800x` dan InfluxDB terjangkau. Sebelum setiap run: stack implementasi menyala dan dump sudah dipulihkan.
+
+```bash
+docker run --rm --network host --cpuset-cpus 0 \
+  -v /opt/research/console/k6:/scripts:ro -v /opt/research/data/k6:/data:ro -v /opt/research/results:/results \
+  -e K6_INFLUXDB_TAGS_AS_FIELDS=vu,iter,url \
+  grafana/k6:1.3.0 run --quiet --out influxdb=http://127.0.0.1:8086/k6 \
+  -e BASE_URL=http://127.0.0.1:8001 -e VUS=50 -e RUN_ID=b01-ar-read-50 -e SUMMARY=/results/b01-ar-read-50.json \
+  /scripts/read.js
+```
+
+| Variabel | Default | Arti |
+|---|---|---|
+| `BASE_URL` | `http://127.0.0.1:8001` | stack yang diuji (8001 AR, 8002 Repo, 8003 QB) |
+| `VUS` | 50 | VU fase terukur (load: tingkat dari uji pilot; stress: naik 50 per tahap) |
+| `WARMUP_VUS`, `WARMUP` | 5, 60s | pemanasan beban rendah, tidak dianalisis |
+| `RAMP`, `SUSTAIN` | 30s, 60s | ramp-up lalu sustain (Tabel 3.6); hanya sustain yang dianalisis |
+| `THINK` | 1 | think time tetap setelah setiap request, dalam detik |
+| `SUMMARY`, `RUN_ID` | `summary.json`, kosong | file ringkasan JSON dan labelnya |
+| `WARMUP_REQUESTS`, `REPEATS`, `GAP` | 3, 10, 0.5 | khusus `single.js` |
+
+Setiap request diberi tag `endpoint` dan `phase` (`warmup`, `rampup`, `sustain`, `cooldown`). Ringkasan JSON berisi baris `sustain` per endpoint: jumlah request, throughput (request berhasil per detik sustain), error rate, avg/med/p95/max response time, dan rata-rata/maksimum `X-Peak-Memory`. Data per request ada di InfluxDB.
+
+Skenario read: setiap VU satu mahasiswa tetap, keenam GET digilir bergantian sehingga porsinya sama. Skenario write: setiap request satu pasangan mahasiswa–ujian dari `write-pairs.json` yang belum dipakai; pemanasan mengambil dari belakang, fase terukur dari depan, dan run dihentikan bila pasangan habis.
