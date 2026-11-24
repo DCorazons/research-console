@@ -19,16 +19,15 @@ export const ENDPOINTS = ['GET exam', 'POST exam-submission', 'GET me-dashboard'
 
 export const options = {
     scenarios: loadScenarios('write'),
-    // k6 clears the cookie jar of a VU before each iteration by default; a browser
-    // keeps its session cookie
-    noCookiesReset: true,
     thresholds: sustainThresholds(ENDPOINTS),
     summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)'],
 };
 
-// State of this VU, kept across iterations and scenarios
+// State of this VU, kept across iterations and scenarios. A VU logs in again when it
+// starts a new scenario, so the measured phase never depends on a warm-up session.
 let studentIndex = null;
 let examIndex = 0;
+let loginScenario = null;
 
 export function write() {
     if (studentIndex === null || examIndex >= students[studentIndex].exam_ids.length) {
@@ -37,7 +36,12 @@ export function write() {
             exec.test.abort(`write: no student left for VU ${exec.vu.idInTest}; lower VUS`);
         }
         examIndex = 0;
+        loginScenario = null;
+    }
+
+    if (loginScenario !== exec.scenario.name) {
         login(students[studentIndex].username);
+        loginScenario = exec.scenario.name;
     }
 
     const student = students[studentIndex];

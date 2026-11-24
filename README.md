@@ -40,15 +40,15 @@ Stack monitoring dibiarkan berjalan sepanjang sesi pengujian; yang dinyalakan da
 
 ## k6
 
-k6 dijalankan dari image `grafana/k6:1.3.0` di CPU 0, dengan jaringan host agar `127.0.0.1:800x` dan InfluxDB terjangkau. Sebelum setiap run: stack implementasi menyala dan dump sudah dipulihkan.
+k6 dijalankan dari image `grafana/k6:1.3.0` di CPU 0, dengan jaringan host agar `127.0.0.1:800x` dan InfluxDB terjangkau, dan dengan user host (`--user`) agar ringkasan JSON bisa ditulis ke folder hasil. Sebelum setiap run: stack implementasi menyala dan dump sudah dipulihkan.
 
 ```bash
-docker run --rm --network host --cpuset-cpus 0 \
+docker run --rm --network host --cpuset-cpus 0 --user "$(id -u):$(id -g)" \
   -v /opt/research/console/k6:/scripts:ro -v /opt/research/data/k6:/data:ro -v /opt/research/results:/results \
   -e K6_INFLUXDB_TAGS_AS_FIELDS=vu,iter,url \
   grafana/k6:1.3.0 run --quiet --out influxdb=http://127.0.0.1:8086/k6 \
   -e BASE_URL=http://127.0.0.1:8001 -e VUS=50 -e RUN_ID=b01-ar-read-50 -e SUMMARY=/results/b01-ar-read-50.json \
-  /scripts/read.js
+  /scripts/read-web.js
 ```
 
 | Variabel | Default | Arti |
@@ -65,7 +65,7 @@ Setiap request diberi tag `endpoint` dan `phase` (`warmup`, `rampup`, `sustain`,
 
 ### Skrip halaman web (pengukuran utama)
 
-Mengikuti masukan dosen pembimbing, pengukuran utama memakai halaman `/research/*` yang di-render di server (Blade), sampai seluruh HTML diterima: waktu yang dialami pengguna dari sisi server. Setiap VU berperilaku seperti satu browser: login sekali lewat form (fase `login`, tidak dianalisis), menyimpan cookie session (`noCookiesReset`), dan tidak mengikuti redirect sehingga POST dan halaman sesudahnya terukur terpisah.
+Mengikuti masukan dosen pembimbing, pengukuran utama memakai halaman `/research/*` yang di-render di server (Blade), sampai seluruh HTML diterima: waktu yang dialami pengguna dari sisi server. Setiap VU berperilaku seperti satu browser: login lewat form (fase `login`, tidak dianalisis) dengan cookie jar sendiri yang dibuat baru setiap login, login ulang di awal setiap skenario, dan tidak mengikuti redirect sehingga POST dan halaman sesudahnya terukur terpisah. Jar bawaan k6 tidak dipakai karena dikosongkan antariterasi dan antarskenario, sehingga session hilang dan login berikutnya mendapat 419.
 
 - `read-web.js`: VU ganjil mahasiswa (dashboard → materi → ujian), VU genap admin (daftar course → enrollment → laporan); keenam halaman mendapat porsi sama.
 - `write-web.js`: setiap VU satu mahasiswa yang mengerjakan ujiannya satu per satu: buka halaman soal (token CSRF), kirim jawaban (303), buka dashboard (pesan nilai). Setelah 14 ujian, VU login sebagai mahasiswa berikutnya; tidak ada pasangan yang dipakai dua kali.

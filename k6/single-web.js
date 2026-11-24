@@ -4,9 +4,8 @@
 // REPEATS measured requests (phase sustain), GAP seconds apart. Every exam post is
 // preceded by its exam page (phase prep) and uses another exam of the student.
 
-import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { BASE_URL, meta, students, summary, sustainThresholds } from './lib/common.js';
+import { meta, students, summary, sustainThresholds } from './lib/common.js';
 import { examForm, login, page } from './lib/web.js';
 
 const WARMUP_REQUESTS = Number(__ENV.WARMUP_REQUESTS || 3);
@@ -46,8 +45,6 @@ export function single() {
     measure('GET course-enrollments', (p) => page('GET', 'GET course-enrollments', `/research/courses/${course}/enrollments`, null, p));
     measure('GET course-report', (p) => page('GET', 'GET course-report', `/research/reports/courses?period_id=${meta.period_id}`, null, p));
 
-    // A new browser for the student: the admin session cookie is not sent any more
-    http.cookieJar().clear(BASE_URL);
     const student = students[0];
     login(student.username);
     measure('GET me-dashboard', (p) => page('GET', 'GET me-dashboard', '/research/dashboard', null, p));

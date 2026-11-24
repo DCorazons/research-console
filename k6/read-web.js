@@ -27,15 +27,13 @@ export const ENDPOINTS = [
 
 export const options = {
     scenarios: loadScenarios('read'),
-    // k6 clears the cookie jar of a VU before each iteration by default; a browser
-    // keeps its session cookie
-    noCookiesReset: true,
     thresholds: sustainThresholds(ENDPOINTS),
     summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)'],
 };
 
-// State of this VU, kept across iterations and scenarios
-let loggedIn = false;
+// State of this VU, kept across iterations and scenarios. A VU logs in again when it
+// starts a new scenario, so the measured phase never depends on a warm-up session.
+let loginScenario = null;
 let step = 0;
 
 export function read() {
@@ -43,9 +41,9 @@ export function read() {
     const isStudent = vu % 2 === 1;
     const student = students[Math.floor((vu - 1) / 2) % students.length];
 
-    if (!loggedIn) {
+    if (loginScenario !== exec.scenario.name) {
         login(isStudent ? student.username : meta.admin_username);
-        loggedIn = true;
+        loginScenario = exec.scenario.name;
     }
 
     const round = Math.floor(step / 3);

@@ -1,15 +1,23 @@
 // Shared parts of the page scripts (read-web.js, write-web.js, single-web.js).
 //
 // The pages under /research are rendered on the server with Blade, as the student pages
-// of academico, and the users log in with a session cookie. k6 keeps one cookie jar per
-// VU, so each VU behaves like one browser. A request ends when the whole HTML has been
-// received: that is the time a user waits for the page from the server.
+// of academico, and the users log in with a session cookie. A request ends when the
+// whole HTML has been received: that is the time a user waits for the page from the
+// server.
+//
+// Each VU behaves like one browser with an explicit cookie jar, created at every login
+// and sent with every request. The default jar of a VU is not used: k6 empties it
+// between iterations and scenarios, and clearing it to switch users did not drop the
+// old session reliably.
 
 import http from 'k6/http';
 import { BASE_URL, meta, peakMemory, phase } from './common.js';
 
 // Pages answer 200, a form post answers with a redirect (302 or 303)
 const WEB_SUCCESS = http.expectedStatuses(200, 302, 303);
+
+// The browser of this VU: replaced at every login
+let jar = new http.CookieJar();
 
 /**
  * One page request. Redirects are not followed, so a form post and the page it leads
@@ -21,6 +29,7 @@ export function page(method, endpoint, path, form = null, phaseName = phase()) {
         headers: { Accept: 'text/html' },
         redirects: 0,
         responseCallback: WEB_SUCCESS,
+        jar,
         tags,
     };
 
@@ -41,10 +50,12 @@ export function csrfToken(html) {
 }
 
 /**
- * Logs the VU in with the login form. These requests carry the phase "login" and stay
- * out of the analysed figures.
+ * Logs in with the login form, in a new browser (a new cookie jar). These requests
+ * carry the phase "login" and stay out of the analysed figures.
  */
 export function login(username) {
+    jar = new http.CookieJar();
+
     const form = page('GET', 'GET login', '/research/login', null, 'login');
     const response = page('POST', 'POST login', '/research/login', {
         _token: csrfToken(form.body),
