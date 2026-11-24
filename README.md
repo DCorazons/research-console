@@ -9,7 +9,7 @@ Repo ini terpisah dari aplikasi uji ([DCorazons/academico](https://github.com/DC
 | Folder | Isi | Status |
 |---|---|---|
 | `monitoring/` | InfluxDB 1.11 (metrik k6), cAdvisor 0.55 (CPU/memori kontainer), Prometheus 3.5 | ada |
-| `k6/` | `read.js` (load dan stress), `write.js` (load), `single.js` (single request), `lib/common.js` | ada |
+| `k6/` | Halaman web (utama): `read-web.js`, `write-web.js`, `single-web.js`, `lib/web.js`. API JSON (pembanding): `read.js`, `write.js`, `single.js`. Bersama: `lib/common.js` | ada |
 | `app/` | FastAPI + Chart.js: antrean run, blok, ekspor CSV | belum |
 
 ## Tata letak di VPS
@@ -62,5 +62,17 @@ docker run --rm --network host --cpuset-cpus 0 \
 | `WARMUP_REQUESTS`, `REPEATS`, `GAP` | 3, 10, 0.5 | khusus `single.js` |
 
 Setiap request diberi tag `endpoint` dan `phase` (`warmup`, `rampup`, `sustain`, `cooldown`). Ringkasan JSON berisi baris `sustain` per endpoint: jumlah request, throughput (request berhasil per detik sustain), error rate, avg/med/p95/max response time, dan rata-rata/maksimum `X-Peak-Memory`. Data per request ada di InfluxDB.
+
+### Skrip halaman web (pengukuran utama)
+
+Mengikuti masukan dosen pembimbing, pengukuran utama memakai halaman `/research/*` yang di-render di server (Blade), sampai seluruh HTML diterima: waktu yang dialami pengguna dari sisi server. Setiap VU berperilaku seperti satu browser: login sekali lewat form (fase `login`, tidak dianalisis), menyimpan cookie session (`noCookiesReset`), dan tidak mengikuti redirect sehingga POST dan halaman sesudahnya terukur terpisah.
+
+- `read-web.js`: VU ganjil mahasiswa (dashboard → materi → ujian), VU genap admin (daftar course → enrollment → laporan); keenam halaman mendapat porsi sama.
+- `write-web.js`: setiap VU satu mahasiswa yang mengerjakan ujiannya satu per satu: buka halaman soal (token CSRF), kirim jawaban (303), buka dashboard (pesan nilai). Setelah 14 ujian, VU login sebagai mahasiswa berikutnya; tidak ada pasangan yang dipakai dua kali.
+- `single-web.js`: satu VU, halaman admin lalu halaman mahasiswa, 3 pemanasan dan 10 terukur per halaman.
+
+Stack harus memakai `SESSION_DRIVER=database` dan `BCRYPT_ROUNDS=10` (lihat `.env.research.example` academico), dan data k6 harus diekspor ulang agar `students.json` berisi `username`.
+
+### Skrip API (pembanding)
 
 Skenario read: setiap VU satu mahasiswa tetap, keenam GET digilir bergantian sehingga porsinya sama. Skenario write: setiap request satu pasangan mahasiswa–ujian dari `write-pairs.json` yang belum dipakai; pemanasan mengambil dari belakang, fase terukur dari depan, dan run dihentikan bila pasangan habis.

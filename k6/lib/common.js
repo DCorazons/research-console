@@ -161,7 +161,7 @@ export function summary(data, scenario, endpoints) {
         + `err ${(r.error_rate * 100).toFixed(2).padStart(6)}% p95 ${(r.p95_ms || 0).toFixed(1).padStart(8)} ms `
         + `mem ${((r.peak_memory_avg || 0) / 1048576).toFixed(2)} MiB`;
 
-    const title = scenario === 'single'
+    const title = scenario.startsWith('single')
         ? 'single requests (measured requests only, 1 VU)'
         : `${scenario} sustain (${SUSTAIN_S}s, ${VUS} VU, think ${THINK}s)`;
 
