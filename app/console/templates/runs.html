@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block title %}Run · Konsol riset{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Run</h1>
+  <form method="get" action="/runs" class="row">
+    <label>Rencana
+      <select name="plan">
+        <option value="">semua</option>
+        {% for p in plans %}<option value="{{ p.id }}" {{ 'selected' if filters.plan == p.id }}>{{ p.id }} ({{ p.suite }}, blok {{ p.first_block }}–{{ p.first_block + p.blocks - 1 }})</option>{% endfor %}
+      </select>
+    </label>
+    <label>Blok <input type="number" name="block" min="1" value="{{ filters.block or '' }}"></label>
+    <label>Implementasi
+      <select name="impl"><option value="">semua</option>
+        {% for key, impl in IMPLEMENTATIONS.items() %}<option value="{{ key }}" {{ 'selected' if filters.impl == key }}>{{ impl.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Jenis
+      <select name="kind"><option value="">semua</option>
+        {% for k in ['single', 'load', 'stress'] %}<option {{ 'selected' if filters.kind == k }}>{{ k }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Skenario
+      <select name="scenario"><option value="">semua</option>
+        {% for s in ['single', 'read', 'write'] %}<option {{ 'selected' if filters.scenario == s }}>{{ s }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Status
+      <select name="status"><option value="">semua</option>
+        {% for s in statuses %}<option {{ 'selected' if filters.status == s }}>{{ s }}</option>{% endfor %}
+      </select>
+    </label>
+    <button class="secondary">Saring</button>
+  </form>
+</section>
+
+<section class="card">
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Label</th><th>Status</th><th class="num">Request</th><th class="num">p95 (ms)</th><th class="num">req/s</th><th class="num">Error</th><th class="num">CPU k6 maks</th><th class="num">Steal</th><th>Selesai</th></tr></thead>
+    <tbody>
+    {% for r in runs %}
+    <tr>
+      <td><a href="/runs/{{ r.id }}">{{ r.label }}</a></td>
+      <td><span class="status status-{{ r.status }}">{{ r.status }}</span></td>
+      <td class="num">{{ r.requests if r.requests is not none else '-' }}</td>
+      <td class="num">{{ r.p95_ms|num }}</td>
+      <td class="num">{{ r.throughput|num(2) }}</td>
+      <td class="num">{{ r.error_rate|pct(2) }}</td>
+      <td class="num">{{ r.k6_cpu_max|pct(0) }}</td>
+      <td class="num">{{ r.steal_all|pct(2) }}</td>
+      <td class="muted">{{ r.ended_at|time }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="9" class="muted">Tidak ada run.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if runs|length == 1000 %}<p class="muted small">Hanya 1000 run pertama yang ditampilkan; persempit saringan atau pakai ekspor CSV.</p>{% endif %}
+</section>
+{% endblock %}

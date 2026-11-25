@@ -1,0 +1,41 @@
+# Research console: web (interface) and runner (runs the queue). Both on CPU 0 with
+# k6 and monitoring; the application stacks run on CPU 1 (table 3.4).
+#
+#   cp console.example.env .env    # fill in the passwords and SECRET_KEY
+#   docker compose build && docker compose up -d
+#
+# Host network for both: the runner reaches the stacks (127.0.0.1:8001-8003),
+# InfluxDB, and Prometheus on localhost, and the web listens on 127.0.0.1 only.
+# Only the runner has the Docker socket; the web has none, so the part that may later
+# be put behind a reverse proxy cannot start containers.
+name: research-console
+
+x-console: &console
+  build: ./app
+  image: research-console:local
+  cpuset: "0"
+  restart: unless-stopped
+  network_mode: host
+  env_file: .env
+
+services:
+  web:
+    <<: *console
+    command: ["uvicorn", "console.web:app", "--host", "127.0.0.1", "--port", "${CONSOLE_PORT:-9000}",
+              "--no-access-log", "--proxy-headers"]
+    volumes:
+      - ${CONSOLE_DATA:-/opt/research/console-data}:/data
+      # Summaries and logs of the runs, served read-only on the run pages
+      - ${RESULTS_DIR:-/opt/research/results}:${RESULTS_DIR:-/opt/research/results}:ro
+
+  runner:
+    <<: *console
+    command: ["python", "-m", "console.runner"]
+    # Time to stop k6 and the application stack when the runner is stopped mid-run
+    stop_grace_period: 120s
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${CONSOLE_DATA:-/opt/research/console-data}:/data
+      # Same path as on the host: compose files of the checkouts use relative paths,
+      # and docker run -v needs host paths for the k6 scripts, data, and results
+      - ${RESEARCH_ROOT:-/opt/research}:${RESEARCH_ROOT:-/opt/research}

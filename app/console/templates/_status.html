@@ -1,0 +1,77 @@
+<section class="grid2">
+  <div class="card">
+    <h2>Antrean</h2>
+    <p>
+      {% if runner_age is none %}<span class="pill bad">runner belum pernah berjalan</span>
+      {% elif runner_age > 30 %}<span class="pill bad">runner tidak merespons ({{ runner_age|int }} s)</span>
+      {% else %}<span class="pill ok">runner hidup</span>{% endif %}
+      {% if paused %}<span class="pill warn">dijeda</span>{% else %}<span class="pill ok">berjalan</span>{% endif %}
+    </p>
+    <p>
+      {% for s in statuses %}<span class="status status-{{ s }}">{{ s }} {{ counts.get(s, 0) }}</span> {% endfor %}
+    </p>
+    {% if counts.get('queued') %}<p class="muted">Sisa sekitar {{ remaining_s|duration }} (rata-rata 3,5 menit per run).</p>{% endif %}
+    {% if role == 'control' %}
+    <div class="actions">
+      {% if paused %}
+      <form method="post" action="/control/start"><input type="hidden" name="csrf" value="{{ csrf }}"><button>Jalankan antrean</button></form>
+      {% else %}
+      <form method="post" action="/control/pause"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="secondary">Jeda setelah run ini</button></form>
+      {% endif %}
+      <form method="post" action="/control/check"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="secondary">Cek ulang</button></form>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Pemeriksaan</h2>
+    {% if preflight %}
+    <p class="muted small">{{ preflight.at|time }}{% if current %} (sebelum run berjalan){% endif %}</p>
+    <ul class="checks">
+      {% for c in preflight.results %}
+      <li class="{{ 'ok' if c.ok else 'bad' }}"><strong>{{ c.name }}</strong> {{ c.detail }}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">Belum ada hasil; runner memeriksa setiap menit saat menganggur.</p>
+    {% endif %}
+  </div>
+</section>
+
+<section class="card">
+  <h2>Run berjalan</h2>
+  {% if current %}
+  <p><a href="/runs/{{ current.id }}"><strong>{{ current.label }}</strong></a> ·
+    {{ NAMES[current.impl] }} · {{ current.kind }} {{ current.scenario }}{% if current.vus %} · {{ current.vus }} VU{% endif %}
+    · fase <strong>{{ phase }}</strong> · {{ elapsed|duration }}</p>
+  {% if role == 'control' %}
+  <form method="post" action="/runs/{{ current.id }}/cancel" data-confirm="Batalkan run {{ current.label }}?">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger">Batalkan run</button>
+  </form>
+  {% endif %}
+  <ol class="events">
+    {% for e in events %}<li class="{{ e.level }}"><span class="muted">{{ e.at|time }}</span> {{ e.message }}</li>{% endfor %}
+  </ol>
+  {% else %}
+  <p class="muted">Tidak ada run yang berjalan.</p>
+  {% endif %}
+</section>
+
+<section class="grid2">
+  <div class="card">
+    <h2>Berikutnya</h2>
+    <table>
+      {% for r in upcoming %}
+      <tr><td><a href="/runs/{{ r.id }}">{{ r.label }}</a></td></tr>
+      {% else %}<tr><td class="muted">Antrean kosong.</td></tr>{% endfor %}
+    </table>
+  </div>
+  <div class="card">
+    <h2>Terakhir selesai</h2>
+    <table>
+      {% for r in recent %}
+      <tr><td><a href="/runs/{{ r.id }}">{{ r.label }}</a></td><td><span class="status status-{{ r.status }}">{{ r.status }}</span></td><td class="muted">{{ r.ended_at|time }}</td></tr>
+      {% else %}<tr><td class="muted">Belum ada.</td></tr>{% endfor %}
+    </table>
+  </div>
+</section>

@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% block title %}{{ run.label }} · Konsol riset{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>{{ run.label }}</h1>
+  <p>
+    <span class="status status-{{ run.status }}">{{ run.status }}</span>
+    {{ NAMES[run.impl] }} · {{ run.kind }} {{ run.scenario }}{% if run.vus %} · {{ run.vus }} VU{% endif %} ·
+    blok {{ run.block }} · urutan {{ run.seq }} · percobaan {{ run.attempt }} · {{ run.script }} ({{ run.suite }})
+  </p>
+  {% if run.invalid_reason %}<p class="warn-text">Tidak valid: {{ run.invalid_reason }}</p>{% endif %}
+  {% if run.error %}<p class="error">{{ run.error }}</p>{% endif %}
+
+  <dl class="facts">
+    <dt>Tag / commit</dt><dd>{{ run.tag or '-' }} {{ (run.git_commit or '')[:8] }}</dd>
+    <dt>Mulai</dt><dd>{{ run.started_at|time }}</dd>
+    <dt>k6</dt><dd>{{ run.k6_started_at|time }} – {{ run.k6_ended_at|time }}</dd>
+    <dt>Jendela sustain</dt><dd>{{ run.sustain_start|time }} – {{ run.sustain_end|time }}{% if run.sustain_estimated %} (perkiraan){% endif %}</dd>
+    <dt>Selesai</dt><dd>{{ run.ended_at|time }}</dd>
+    <dt>CPU k6</dt><dd>rata-rata {{ run.k6_cpu_avg|pct(0) }}, maks {{ run.k6_cpu_max|pct(0) }}</dd>
+    <dt>Steal</dt><dd>semua CPU {{ run.steal_all|pct(2) }}, CPU 1 {{ run.steal_cpu1|pct(2) }}</dd>
+  </dl>
+
+  <div class="actions">
+    {% if has_summary %}<a class="button secondary" href="/runs/{{ run.id }}/summary.json">Ringkasan k6 (JSON)</a>{% endif %}
+    {% if has_log %}<a class="button secondary" href="/runs/{{ run.id }}/log">Log</a>{% endif %}
+    {% if role == 'control' %}
+      {% if run.status in ['queued', 'running'] %}
+      <form method="post" action="/runs/{{ run.id }}/cancel" data-confirm="Batalkan run {{ run.label }}?"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger">Batalkan</button></form>
+      {% endif %}
+      {% if run.status in ['invalid', 'failed', 'cancelled'] %}
+      <form method="post" action="/runs/{{ run.id }}/retry"><input type="hidden" name="csrf" value="{{ csrf }}"><button>Ulangi</button></form>
+      {% endif %}
+    {% endif %}
+  </div>
+  {% if attempts|length > 1 %}
+  <p class="small">Percobaan: {% for a in attempts %}<a href="/runs/{{ a.id }}">{{ a.attempt }}</a> <span class="status status-{{ a.status }}">{{ a.status }}</span> {% endfor %}</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Sustain per endpoint</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Endpoint</th><th class="num">Request</th><th class="num">req/s</th><th class="num">Error</th><th class="num">avg</th><th class="num">med</th><th class="num">p95</th><th class="num">max (ms)</th><th class="num">Memori avg / maks (MiB)</th></tr></thead>
+    <tbody>
+    {% for e in endpoints %}
+    <tr class="{{ 'total' if e.endpoint == 'all' }}">
+      <td>{{ e.endpoint }}</td><td class="num">{{ e.requests }}</td><td class="num">{{ e.throughput|num(2) }}</td>
+      <td class="num">{{ e.error_rate|pct(2) }}</td><td class="num">{{ e.avg_ms|num }}</td><td class="num">{{ e.med_ms|num }}</td>
+      <td class="num">{{ e.p95_ms|num }}</td><td class="num">{{ e.max_ms|num }}</td>
+      <td class="num">{{ e.peak_memory_avg|mib }} / {{ e.peak_memory_max|mib }}</td>
+    </tr>
+    {% else %}<tr><td colspan="9" class="muted">Belum ada data.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Kontainer selama sustain</h2>
+  <table>
+    <thead><tr><th>Layanan</th><th>Kontainer</th><th class="num">CPU avg</th><th class="num">CPU maks</th><th class="num">Memori avg (MiB)</th><th class="num">Memori maks (MiB)</th><th class="num">Titik</th></tr></thead>
+    <tbody>
+    {% for x in resources %}
+    <tr><td>{{ x.service }}</td><td class="muted">{{ x.container }}</td><td class="num">{{ x.cpu_avg|pct(0) }}</td><td class="num">{{ x.cpu_max|pct(0) }}</td>
+      <td class="num">{{ x.mem_avg|mib }}</td><td class="num">{{ x.mem_max|mib }}</td><td class="num">{{ x.samples }}</td></tr>
+    {% else %}<tr><td colspan="7" class="muted">Belum ada data.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  <p class="muted small">CPU 100 % = satu CPU penuh. Titik setiap 5 detik dari cAdvisor lewat Prometheus.</p>
+</section>
+
+<section class="card">
+  <h2>Langkah</h2>
+  <ol class="events">
+    {% for e in events %}<li class="{{ e.level }}"><span class="muted">{{ e.at|time }}</span> {{ e.message }}</li>{% else %}<li class="muted">Belum ada.</li>{% endfor %}
+  </ol>
+</section>
+{% endblock %}

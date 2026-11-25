@@ -10,7 +10,7 @@ Repo ini terpisah dari aplikasi uji ([DCorazons/academico](https://github.com/DC
 |---|---|---|
 | `monitoring/` | InfluxDB 1.11 (metrik k6), cAdvisor 0.55 (CPU/memori kontainer), Prometheus 3.5 | ada |
 | `k6/` | Halaman web (utama): `read-web.js`, `write-web.js`, `single-web.js`, `lib/web.js`. API JSON (pembanding): `read.js`, `write.js`, `single.js`. Bersama: `lib/common.js` | ada |
-| `app/` | FastAPI + Chart.js: antrean run, blok, ekspor CSV | belum |
+| `app/`, `docker-compose.yml` | Konsol (FastAPI): antrean run, rencana blok, hasil, ekspor CSV | ada |
 
 ## Tata letak di VPS
 
@@ -20,6 +20,8 @@ Repo ini terpisah dari aplikasi uji ([DCorazons/academico](https://github.com/DC
 ├─ academico-repo/    checkout impl/repository,    port 127.0.0.1:8002
 ├─ academico-qb/      checkout impl/query-builder, port 127.0.0.1:8003
 ├─ data/              dump + data k6 dari `php artisan research:export-k6-data` (tidak di-commit)
+├─ results/           ringkasan JSON dan log setiap run (<label>.json, <label>.log)
+├─ console-data/      basis data SQLite konsol
 └─ console/           repo ini
 ```
 
@@ -76,3 +78,50 @@ Stack harus memakai `SESSION_DRIVER=database` dan `BCRYPT_ROUNDS=10` (lihat `.en
 ### Skrip API (pembanding)
 
 Skenario read: setiap VU satu mahasiswa tetap, keenam GET digilir bergantian sehingga porsinya sama. Skenario write: setiap request satu pasangan mahasiswa–ujian dari `write-pairs.json` yang belum dipakai; pemanasan mengambil dari belakang, fase terukur dari depan, dan run dihentikan bila pasangan habis.
+
+## Konsol
+
+Dua kontainer di CPU 0, berbagi satu file SQLite (`/opt/research/console-data/console.db`):
+
+| Kontainer | Tugas | Akses |
+|---|---|---|
+| `web` | antarmuka di `127.0.0.1:9000` | tanpa Docker socket; hanya menulis rencana dan perintah (jalankan, jeda, batalkan) ke SQLite |
+| `runner` | menjalankan antrean satu run demi satu run | Docker socket dan `/opt/research` (path sama dengan host); tanpa port |
+
+```bash
+cd /opt/research/console
+cp console.example.env .env        # isi VIEW_PASSWORD, CONTROL_PASSWORD, SECRET_KEY, K6_USER=$(id -u):$(id -g)
+mkdir -p /opt/research/console-data /opt/research/results
+docker compose build && docker compose up -d
+```
+
+Dari laptop: `ssh -L 9000:127.0.0.1:9000 ubuntu@<vps>`, lalu buka `http://localhost:9000`. Password **lihat** membuka semua halaman dan ekspor; password **kontrol** juga bisa membuat rencana dan menjalankan antrean.
+
+### Prosedur satu run (runner)
+
+1. Pemeriksaan awal: monitoring siap, `sha256sum -c SHA256SUMS` di folder data, tidak ada stack `research-ar|repo|qb` lain yang berjalan, checkout tepat di tag (`TAG_AR`, `TAG_REPO`, `TAG_QB`) tanpa perubahan, image sudah di-build.
+2. `docker compose up -d --no-build --wait`, tunggu `/research/login` 200.
+3. Pulihkan dump, `php artisan research:verify-dataset`, jeda `SETTLE_S` detik.
+4. k6 (`grafana/k6:1.3.0`, CPU 0, kontainer `research-k6-<id>`, `--tag run_id=<label>`), sambil mencatat `/proc/stat` setiap detik.
+5. Jendela sustain diambil dari InfluxDB (request `phase=sustain` pertama dan terakhir dengan `run_id` itu). CPU dan memori `app`, `mariadb`, dan `k6` pada jendela itu diambil dari Prometheus.
+6. Validitas: tidak valid bila CPU k6 maksimum ≥ `K6_CPU_LIMIT` (80 % satu CPU) atau steal (semua CPU maupun CPU 1) ≥ `STEAL_LIMIT` (5 %). Error rate tidak menentukan validitas; itu hasil. Run tidak valid langsung diulang sampai `MAX_ATTEMPTS` (3) kali.
+7. `docker compose down`. Bila ada langkah yang gagal (bukan tidak valid), run ditandai `failed` dan antrean dijeda.
+
+### Rencana blok
+
+Satu blok berisi semua run ketiga implementasi (41 run, sekitar 2 jam 20 menit):
+
+1. Single dan load, implementasi demi implementasi, urutan diputar per blok: blok 1 AR→Repo→QB, blok 2 Repo→QB→AR, blok 3 QB→AR→Repo, dan seterusnya. Setiap implementasi: single, load read 25/50/75, load write 25/50/75.
+2. Stress hanya AR dan Repo, bergantian siapa yang lebih dulu (blok ganjil AR): stress read lalu stress write pada 75/125/175/225/275 VU. Tahapnya tetap untuk kedua implementasi; titik jenuh dibaca dari hasil, run tidak dihentikan di sana.
+
+Suite `web` (halaman, utama) memakai `*-web.js`; suite `api` (pembanding) memakai `single.js`, `read.js`, `write.js` dan dibuat sebagai rencana terpisah.
+
+### Hasil dan ekspor
+
+Halaman Hasil hanya memakai run `done` yang valid: rata-rata ± simpangan baku sampel antarblok per jenis, skenario, VU, implementasi, dan endpoint, dengan grafik SVG (p95, throughput, X-Peak-Memory). Ekspor CSV: `runs.csv` (semua run, termasuk yang tidak valid dan alasannya), `endpoints.csv`, `resources.csv`, `aggregate.csv?suite=web`.
+
+### Pengembangan
+
+```bash
+cd app && python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt && .venv/bin/pytest -q
+```

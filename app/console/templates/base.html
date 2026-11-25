@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Konsol riset{% endblock %}</title>
+  <link rel="stylesheet" href="/static/console.css">
+  <script src="/static/console.js" defer></script>
+</head>
+<body>
+  {% if role %}
+  <header class="top">
+    <strong class="brand">Konsol riset</strong>
+    <nav>
+      <a href="/">Beranda</a>
+      <a href="/plans">Rencana</a>
+      <a href="/runs">Run</a>
+      <a href="/results">Hasil</a>
+    </nav>
+    <span class="who">
+      <span class="badge {{ 'badge-control' if role == 'control' else '' }}">{{ 'kontrol' if role == 'control' else 'lihat' }}</span>
+      <form method="post" action="/logout" class="inline"><button class="link">Keluar</button></form>
+    </span>
+  </header>
+  {% endif %}
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

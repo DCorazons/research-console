@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}Masuk · Konsol riset{% endblock %}
+{% block content %}
+<section class="card narrow">
+  <h1>Konsol riset</h1>
+  <p class="muted">Password lihat hanya membuka halaman dan ekspor. Password kontrol juga bisa membuat rencana dan menjalankan antrean.</p>
+  {% if not configured %}
+  <p class="error">VIEW_PASSWORD dan CONTROL_PASSWORD belum diisi di .env konsol.</p>
+  {% endif %}
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <form method="post" action="/login" class="stack">
+    <label>Password <input type="password" name="password" autofocus required autocomplete="current-password"></label>
+    <button>Masuk</button>
+  </form>
+</section>
+{% endblock %}

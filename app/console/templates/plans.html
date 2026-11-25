@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% block title %}Rencana · Konsol riset{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Rencana blok</h1>
+  <p class="muted">Setiap blok berisi semua run ketiga implementasi. Single dan load: urutan AR, Repo, QB diputar per blok. Stress: hanya AR dan Repo, bergantian siapa yang lebih dulu. Load {{ load_vus|join(' / ') }} VU, stress {{ stress_vus|join(' / ') }} VU.</p>
+  <form method="get" action="/plans" class="row">
+    <label>Suite
+      <select name="suite">
+        <option value="web" {{ 'selected' if form.suite == 'web' }}>web (halaman, utama)</option>
+        <option value="api" {{ 'selected' if form.suite == 'api' }}>api (pembanding)</option>
+      </select>
+    </label>
+    <label>Blok pertama <input type="number" name="first_block" min="1" value="{{ form.first_block }}"></label>
+    <label>Jumlah blok <input type="number" name="blocks" min="1" max="20" value="{{ form.blocks }}"></label>
+    <label>Stress
+      <select name="stress">
+        <option value="1" {{ 'selected' if form.stress }}>ya</option>
+        <option value="0" {{ 'selected' if not form.stress }}>tidak</option>
+      </select>
+    </label>
+    <button class="secondary">Pratinjau</button>
+  </form>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+</section>
+
+{% if preview %}
+<section class="card">
+  <h2>Pratinjau: {{ preview|length }} run, sekitar {{ (preview|length * per_run_s)|duration }}</h2>
+  {% if role == 'control' %}
+  <form method="post" action="/plans" class="row">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="suite" value="{{ form.suite }}">
+    <input type="hidden" name="first_block" value="{{ form.first_block }}">
+    <input type="hidden" name="blocks" value="{{ form.blocks }}">
+    <input type="hidden" name="stress" value="{{ form.stress }}">
+    <label class="grow">Catatan <input type="text" name="note" maxlength="200" placeholder="opsional"></label>
+    <button>Masukkan ke antrean</button>
+  </form>
+  <p class="muted small">Antrean tidak langsung berjalan: tekan "Jalankan antrean" di beranda.</p>
+  {% endif %}
+  <div class="scroll">
+  <table>
+    <thead><tr><th>#</th><th>Blok</th><th>Implementasi</th><th>Jenis</th><th>Skenario</th><th>VU</th><th>Skrip</th></tr></thead>
+    <tbody>
+    {% for r in preview %}
+    <tr class="{{ 'block-start' if loop.first or preview[loop.index0 - 1].block != r.block }}">
+      <td>{{ r.seq }}</td><td>{{ r.block }}</td><td>{{ NAMES[r.impl] }}</td><td>{{ r.kind }}</td><td>{{ r.scenario }}</td><td>{{ r.vus or 1 }}</td><td class="muted">{{ r.script }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Rencana tersimpan</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>ID</th><th>Dibuat</th><th>Suite</th><th>Blok</th><th>Stress</th><th>Run</th><th>Status</th><th>Catatan</th><th></th></tr></thead>
+    <tbody>
+    {% for p in plans %}
+    <tr>
+      <td><a href="/runs?plan={{ p.id }}">{{ p.id }}</a></td>
+      <td>{{ p.created_at|time }}</td>
+      <td>{{ p.suite }}</td>
+      <td>{{ p.first_block }}–{{ p.first_block + p.blocks - 1 }}</td>
+      <td>{{ 'ya' if p.stress else 'tidak' }}</td>
+      <td>{{ p.runs }}</td>
+      <td class="small">
+        {% for s in ['queued', 'running', 'done', 'invalid', 'failed', 'cancelled'] %}{% if p[s] %}<span class="status status-{{ s }}">{{ s }} {{ p[s] }}</span> {% endif %}{% endfor %}
+      </td>
+      <td>{{ p.note or '' }}</td>
+      <td>
+        {% if role == 'control' and p.queued %}
+        <form method="post" action="/plans/{{ p.id }}/cancel" data-confirm="Batalkan {{ p.queued }} run yang masih antre di rencana {{ p.id }}?">
+          <input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger small">Batalkan sisa</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="9" class="muted">Belum ada rencana.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endblock %}

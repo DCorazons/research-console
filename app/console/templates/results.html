@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% block title %}Hasil · Konsol riset{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Hasil</h1>
+  <p class="muted">Hanya run yang selesai dan valid. Rata-rata ± simpangan baku sampel antarblok, dari fase sustain.</p>
+  <form method="get" action="/results" class="row">
+    <label>Suite
+      <select name="suite">
+        <option value="web" {{ 'selected' if suite == 'web' }}>web (halaman)</option>
+        <option value="api" {{ 'selected' if suite == 'api' }}>api (pembanding)</option>
+      </select>
+    </label>
+    <label>Endpoint
+      <select name="endpoint">{% for e in endpoints %}<option {{ 'selected' if e == endpoint }}>{{ e }}</option>{% endfor %}</select>
+    </label>
+    <button class="secondary">Tampilkan</button>
+  </form>
+  <p class="small">Ekspor CSV:
+    <a href="/export/runs.csv">runs</a> ·
+    <a href="/export/endpoints.csv">endpoints</a> ·
+    <a href="/export/resources.csv">resources</a> ·
+    <a href="/export/aggregate.csv?suite={{ suite }}">agregat {{ suite }}</a>
+  </p>
+</section>
+
+{% for f in figures %}
+<section class="card">
+  <h2>{{ f.title }} <span class="muted small">({{ endpoint }})</span></h2>
+  <div class="charts">
+    <figure><figcaption>p95 response time</figcaption>{{ f.p95|safe }}</figure>
+    <figure><figcaption>Throughput</figcaption>{{ f.throughput|safe }}</figure>
+    <figure><figcaption>X-Peak-Memory</figcaption>{{ f.memory|safe }}</figure>
+  </div>
+</section>
+{% endfor %}
+
+<section class="card">
+  <h2>Tabel</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Jenis</th><th>Skenario</th><th class="num">VU</th><th>Implementasi</th><th class="num">n</th>
+      <th class="num">p95 (ms)</th><th class="num">avg (ms)</th><th class="num">req/s</th><th class="num">Error</th>
+      <th class="num">Memori (MiB)</th><th class="num">CPU app</th><th class="num">CPU MariaDB</th></tr></thead>
+    <tbody>
+    {% for g in groups %}
+    <tr>
+      <td>{{ g.kind }}</td><td>{{ g.scenario }}</td><td class="num">{{ g.vus or 1 }}</td><td>{{ NAMES[g.impl] }}</td>
+      <td class="num" title="blok {{ g.blocks|join(', ') }}">{{ g.n }}</td>
+      <td class="num">{{ g.p95_ms_mean|num }}{% if g.p95_ms_sd is not none %} ± {{ g.p95_ms_sd|num }}{% endif %}</td>
+      <td class="num">{{ g.avg_ms_mean|num }}{% if g.avg_ms_sd is not none %} ± {{ g.avg_ms_sd|num }}{% endif %}</td>
+      <td class="num">{{ g.throughput_mean|num(2) }}{% if g.throughput_sd is not none %} ± {{ g.throughput_sd|num(2) }}{% endif %}</td>
+      <td class="num">{{ g.error_rate_mean|pct(2) }}</td>
+      <td class="num">{{ g.peak_memory_avg_mean|mib }}</td>
+      <td class="num">{{ g.app_cpu_avg_mean|pct(0) }}</td>
+      <td class="num">{{ g.db_cpu_avg_mean|pct(0) }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="12" class="muted">Belum ada run valid.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endblock %}

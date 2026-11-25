@@ -1,0 +1,7 @@
+{% extends 'base.html' %}
+{% block content %}
+<div data-poll="/partials/status" data-every="5">
+  {% include '_status.html' %}
+</div>
+<p class="muted small">Halaman ini diperbarui setiap 5 detik selama tab terbuka. Konsol berbagi CPU 0 dengan k6: selama run, cukup biarkan satu tab terbuka.</p>
+{% endblock %}
