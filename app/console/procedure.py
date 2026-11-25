@@ -168,9 +168,13 @@ def execute(conn: sqlite3.Connection, run: sqlite3.Row) -> str:
         ctx.check_cancel()
 
         stack_up = True
-        ctx.sh(impl.compose('up', '-d', '--no-build', '--wait', '--wait-timeout', '180'), timeout=300)
+        # No --wait: the FrankenPHP base image has a healthcheck on the Caddy admin API
+        # (localhost:2019/metrics), which the research Caddyfile turns off (admin off),
+        # so the app container always reports unhealthy. depends_on still starts the app
+        # only once MariaDB is healthy, and the login page below shows the app is up.
+        ctx.sh(impl.compose('up', '-d', '--no-build'), timeout=300)
         containers = stack_containers(ctx)
-        wait_http(f'{impl.base_url}/research/login')
+        wait_http(f'{impl.base_url}/research/login', timeout=180)
         ctx.sh(f'gunzip -c {shlex.quote(config.DUMP)} | '
                + shlex.join(impl.compose('exec', '-T', 'mariadb', 'mariadb', '-uacademico', '-psecret',
                                          'academico_filament')), timeout=300)
