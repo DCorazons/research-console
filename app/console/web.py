@@ -242,8 +242,9 @@ def plan_rows(conn):
 
 
 @app.get('/plans', response_class=HTMLResponse)
-def plans_page(request: Request, blocks: int = 1, first_block: int | None = None, suite: str = 'web',
+def plans_page(request: Request, blocks: int = 1, first_block: str = '', suite: str = 'web',
                stress: int = 1, role: str = Depends(viewer), conn=Depends(get_conn)):
+    first_block = optional_int(first_block)
     if first_block is None:
         last = conn.execute('SELECT MAX(block) FROM runs WHERE suite = ?', (suite,)).fetchone()[0]
         first_block = (last or 0) + 1
@@ -280,9 +281,18 @@ def cancel_plan(request: Request, plan_id: int, csrf: str = Form(''), role: str 
 
 # --- runs ------------------------------------------------------------------------------
 
+def optional_int(value: str) -> int | None:
+    """A filter field sent empty ("Semua") or not sent at all means no filter"""
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
 @app.get('/runs', response_class=HTMLResponse)
-def runs_page(request: Request, plan: int | None = None, block: int | None = None, impl: str = '', kind: str = '',
+def runs_page(request: Request, plan: str = '', block: str = '', impl: str = '', kind: str = '',
               scenario: str = '', status: str = '', role: str = Depends(viewer), conn=Depends(get_conn)):
+    plan, block = optional_int(plan), optional_int(block)
     where, params = [], []
     for column, value in (('plan_id', plan), ('block', block), ('impl', impl), ('kind', kind),
                           ('scenario', scenario), ('status', status)):

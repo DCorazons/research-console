@@ -34,7 +34,8 @@ def test_wrong_password(client):
 
 def test_view_role_reads_but_cannot_control(client):
     assert login(client, 'view-secret').status_code == 303
-    for path in ('/', '/partials/status', '/plans?blocks=1', '/runs', '/results', '/export/runs.csv',
+    for path in ('/', '/partials/status', '/plans?blocks=1', '/runs', '/runs?plan=&block=1&impl=&kind=&scenario=&status=',
+                 '/plans?blocks=1&first_block=', '/results', '/export/runs.csv',
                  '/export/endpoints.csv', '/export/resources.csv', '/export/aggregate.csv'):
         assert client.get(path).status_code == 200, path
     assert 'Masukkan ke antrean' not in client.get('/plans').text
