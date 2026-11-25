@@ -262,9 +262,16 @@ def execute(conn: sqlite3.Connection, run: sqlite3.Row) -> str:
         db.set_control(conn, 'paused', '1')
         ctx.log('antrean dijeda karena run gagal', 'warning')
     finally:
+        # Each cleanup step on its own, so a failing one never leaves the stack running
         if sampler is not None and sampler.is_alive():
-            sampler.stop()
-        subprocess.run(['docker', 'rm', '-f', ctx.k6_container], capture_output=True, timeout=60)
+            try:
+                sampler.stop()
+            except Exception as error:
+                ctx.log(f'gagal menghentikan pencatat /proc/stat: {error}', 'error')
+        try:
+            subprocess.run(['docker', 'rm', '-f', ctx.k6_container], capture_output=True, timeout=60)
+        except Exception as error:
+            ctx.log(f'gagal menghapus kontainer k6: {error}', 'error')
         if stack_up:
             try:
                 ctx.sh(impl.compose('down'), timeout=180, check=False)

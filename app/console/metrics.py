@@ -34,18 +34,18 @@ class ProcStatSampler(threading.Thread):
         self.interval = interval
         self.path = path
         self.samples: list[tuple[float, dict[str, tuple[int, int]]]] = []
-        self._stop = threading.Event()
+        self._halt = threading.Event()
 
     def run(self):
-        while not self._stop.is_set():
+        while not self._halt.is_set():
             try:
                 self.samples.append((time.time(), read_proc_stat(self.path)))
             except OSError:
                 pass
-            self._stop.wait(self.interval)
+            self._halt.wait(self.interval)
 
     def stop(self):
-        self._stop.set()
+        self._halt.set()
         if self.is_alive():
             self.join(timeout=5)
         try:
